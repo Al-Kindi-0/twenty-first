@@ -138,6 +138,13 @@ impl BFieldElement {
     const fn canonical_representation(&self) -> u64 {
         Self::montyred(self.0 as u128)
     }
+    #[inline]
+    pub fn inner(&self) -> u64 {
+        self.0
+    }
+    pub fn from_mont(value: u64) -> Self {
+        Self(value)
+    }
 
     #[must_use]
     #[inline]

@@ -4,6 +4,9 @@ use serde::{Deserialize, Serialize};
 
 use super::b_field_element::BFieldElement;
 
+mod mds_freq;
+use mds_freq::mds_multiply_freq;
+
 pub const DIGEST_LENGTH: usize = 5;
 pub const STATE_SIZE: usize = 16;
 pub const NUM_SPLIT_AND_LOOKUP: usize = 4;
@@ -295,6 +298,36 @@ impl Tip5 {
             }
         }
     }
+    #[inline(always)]
+    fn apply_mds(state: &mut [BFieldElement; STATE_SIZE]) {
+        let mut result = [BFieldElement::zero(); STATE_SIZE];
+
+        // Using the linearity of the operations we can split the state into a low||high decomposition
+        // and operate on each with no overflow and then combine/reduce the result to a field element.
+        let mut state_l = [0u64; STATE_SIZE];
+        let mut state_h = [0u64; STATE_SIZE];
+
+        for r in 0..STATE_SIZE {
+            let s = state[r].inner();
+            state_h[r] = s >> 32;
+            state_l[r] = (s as u32) as u64;
+        }
+
+        let state_h = mds_multiply_freq(state_h);
+        let state_l = mds_multiply_freq(state_l);
+
+        for r in 0..STATE_SIZE {
+            let s = state_l[r] as u128 + ((state_h[r] as u128) << 32);
+            let s_hi = (s >> 64) as u64;
+            let s_lo = s as u64;
+            let z = (s_hi << 32) - s_hi;
+            let (res, over) = s_lo.overflowing_add(z);
+
+            result[r] =
+                BFieldElement::from_mont(res.wrapping_add(0u32.wrapping_sub(over as u32) as u64));
+        }
+        *state = result;
+    }
 
     #[inline]
     pub fn mds_noswap(state: &mut [BFieldElement; STATE_SIZE]) {
@@ -335,7 +368,7 @@ impl Tip5 {
     fn round(&self, sponge: &mut Tip5State, round_index: usize) {
         self.sbox_layer(&mut sponge.state);
 
-        Self::mds_noswap(&mut sponge.state);
+        Self::apply_mds(&mut sponge.state);
 
         for i in 0..STATE_SIZE {
             sponge.state[i] += self.round_constants[round_index * STATE_SIZE + i];
