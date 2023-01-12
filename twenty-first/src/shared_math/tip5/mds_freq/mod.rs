@@ -1,8 +1,10 @@
-const MDS_FREQ_BLOCK_ONE: [i64; 4] = [16, 8, 16, 4];
-const MDS_FREQ_BLOCK_TWO: [(i64, i64); 4] = [(-1, 2), (-1, 1), (4, 8), (2, 1)];
-const MDS_FREQ_BLOCK_THREE: [i64; 4] = [-8, 1, 1, 2];
+// Partial FFT16 of circular([3, 1, 11, 6, 10, 4, 2, 2, 5, 3, 13, 4, 14, 8, 6, 4])
+// Note this NOT an MDS matrix. Finding an MDS matrix which has small powers of two partial FFT16
+// is a requirement for what follows.
+const MDS_FREQ_BLOCK_ONE: [i64; 4] = [8, 4, 8, 4];
+const MDS_FREQ_BLOCK_TWO: [(i64, i64); 4] = [(-1, 2), (-1, 2), (-1, 2), (1, 1)];
+const MDS_FREQ_BLOCK_THREE: [i64; 4] = [-4, -2, 4, 1];
 
-// We use split 3 x 4 FFT transform in order to transform our vectors into the frequency domain.
 #[inline(always)]
 #[allow(clippy::shadow_unrelated)]
 pub(crate) fn mds_multiply_freq(state: [u64; 16]) -> [u64; 16] {
@@ -12,14 +14,6 @@ pub(crate) fn mds_multiply_freq(state: [u64; 16]) -> [u64; 16] {
     let (u4, u5, u6) = fft4_real([s1, s5, s9, s13]);
     let (u8, u9, u10) = fft4_real([s2, s6, s10, s14]);
     let (u12, u13, u14) = fft4_real([s3, s7, s11, s15]);
-
-    // This where the multiplication in frequency domain is done. More precisely, and with
-    // the appropriate permuations in between, the sequence of
-    // 3-point FFTs --> multiplication by twiddle factors --> Hadamard multiplication -->
-    // 3 point iFFTs --> multiplication by (inverse) twiddle factors
-    // is "squashed" into one step composed of the functions "block1", "block2" and "block3".
-    // The expressions in the aformentioned functions are the result of explicit computations
-    // combined with the Karatsuba trick for the multiplication of Complex numbers.
 
     let [v0, v4, v8, v12] = block1([u0, u4, u8, u12], MDS_FREQ_BLOCK_ONE);
     let [v1, v5, v9, v13] = block2([u1, u5, u9, u13], MDS_FREQ_BLOCK_TWO);
